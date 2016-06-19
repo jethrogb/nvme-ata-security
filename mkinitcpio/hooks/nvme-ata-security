@@ -1,0 +1,10 @@
+#!/usr/bin/ash
+
+run_hook() {
+	for dev in /dev/nvme[0-9]; do
+		if nvme-ata-security query $dev 2>&1 |grep -q 'locked: true'; then
+			echo Unlocking $dev
+			nvme-ata-security unlock -u $dev
+		fi
+	done
+}
