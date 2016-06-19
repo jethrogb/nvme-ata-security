@@ -1,0 +1,4 @@
+[submodule "linux"]
+	path = linux
+	url = https://github.com/jethrogb/nvme-ata-security.git
+	branch = linux
