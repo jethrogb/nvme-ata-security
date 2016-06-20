@@ -9,7 +9,7 @@ instead of using SATA. This of course means that most ATA features are not
 directly supported, but some drives do support the ATA Security feature set 
 through a compatibility layer.
 
-This repository Linux tools to deal with such drives.
+This repository contains Linux tools to deal with such drives.
 
 ## linux/
 
