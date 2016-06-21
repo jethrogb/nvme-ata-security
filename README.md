@@ -11,9 +11,7 @@ through a compatibility layer.
 
 This repository contains Linux tools to deal with such drives.
 
-## linux/
-
-Linux driver that improves handling of locked NVMe drives.
+You will want to use [this kernel patch](http://lists.infradead.org/pipermail/linux-nvme/2016-June/005114.html).
 
 ## mkinitcpio/
 
