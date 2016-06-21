@@ -33,13 +33,14 @@ impl From<nvme::StatusCode> for Error {
 
 pub type Result<T> = ::std::result::Result<T,Error>;
 
-pub fn identify(fd: RawFd) -> Result<nvme::identify::IdentifyController> {
+pub fn identify_controller(fd: RawFd) -> Result<nvme::identify::IdentifyController> {
 	let mut buf=[0u8;4096];
 	unsafe {
 		try!(nvme_ioctl_admin_cmd(fd,NvmeAdminCmd {
 			opcode:   nvme::Opcode::AdminIdentify as u8,
 			addr:     &mut buf as *mut _ as usize as u64,
 			data_len: 4096,
+			nsid:     0,
 			cdw10:    1,
 			..Default::default()
 		}))
@@ -52,6 +53,7 @@ pub fn security_send(fd: RawFd, secp: u8, spsp: u16, nssf: u8, data: Option<&[u8
 	unsafe {
 		nvme_ioctl_admin_cmd(fd,NvmeAdminCmd {
 			opcode:   nvme::Opcode::AdminSecuritySend as u8,
+			nsid:     try!(nvme_ioctl_id(fd)),
 			addr:     data.map(|d|d.as_ptr() as usize as u64).unwrap_or(0),
 			data_len: data.map(|d|d.len() as u32).unwrap_or(0),
 			cdw11:    data.map(|d|d.len() as u32).unwrap_or(0),
@@ -66,6 +68,7 @@ pub fn security_receive(fd: RawFd, secp: u8, spsp: u16, nssf: u8, data: &mut [u8
 	unsafe {
 		nvme_ioctl_admin_cmd(fd,NvmeAdminCmd {
 			opcode:   nvme::Opcode::AdminSecurityReceive as u8,
+			nsid:     try!(nvme_ioctl_id(fd)),
 			addr:     data.as_mut_ptr() as usize as u64,
 			data_len: data.len() as u32,
 			cdw11:    data.len() as u32,
@@ -86,14 +89,23 @@ unsafe fn nvme_ioctl_admin_cmd(fd: RawFd, mut cmd: NvmeAdminCmd) -> Result<()> {
 	}
 }
 
-pub fn nvme_ioctl_reset(fd: RawFd) -> Result<()> {
-	let ret=unsafe{raw_nvme_ioctl_reset(fd)};
+pub fn ioctl_blkrrpart(fd: RawFd) -> Result<()> {
+	let ret=unsafe{raw_ioctl_blkrrpart(fd)};
 	if ret<0 {
 		Err(Error::Io(IoError::last_os_error()))
 	} else if ret>0 {
-		panic!("Unexpected return value from NVME_IOCTL_RESET ioctl: {}",ret);
+		panic!("Unexpected return value from BLKRRPART ioctl: {}",ret);
 	} else {
 		Ok(())
+	}
+}
+
+pub fn nvme_ioctl_id(fd: RawFd) -> Result<u32> {
+	let ret=unsafe{raw_nvme_ioctl_id(fd)};
+	if ret<0 {
+		Err(Error::Io(IoError::last_os_error()))
+	} else {
+		Ok(ret as u32)
 	}
 }
 
@@ -121,6 +133,8 @@ mod ioctl {
 		pub result:       u32,
 	}
 
+	ioctl!(none raw_nvme_ioctl_id with b'N', 0x40);
 	ioctl!(readwrite raw_nvme_ioctl_admin_cmd with b'N', 0x41; NvmeAdminCmd);
-	ioctl!(none raw_nvme_ioctl_reset with b'N', 0x44);
+
+	ioctl!(none raw_ioctl_blkrrpart with 0x12, 95);
 }

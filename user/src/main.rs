@@ -23,6 +23,7 @@ mod ops;
 mod nvme;
 
 use std::os::unix::io::AsRawFd;
+use std::os::unix::fs::FileTypeExt;
 use std::fs::File;
 use std::io::{Read,Write,self};
 
@@ -71,7 +72,7 @@ fn ata_identify(f: &File, protocols: &[nvme::security::Protocol]) -> Result<Opti
 }
 
 fn query(f: &File) {
-	let i=match ops::identify(f.as_raw_fd()) {
+	let i=match ops::identify_controller(f.as_raw_fd()) {
 		Err(e) => {
 			eprintln!("There was an error obtaining NVMe identity information:\n{:?}",e);
 			return;
@@ -114,7 +115,7 @@ s_suprt: {} s_enabld: {} locked: {} frozen: {} pwncntex: {} en_er_sup: {}",secur
 }
 
 fn check_support(f: &File) -> Option<nvme::security::AtaSecurityIdentify> {
-	let i=match ops::identify(f.as_raw_fd()) {
+	let i=match ops::identify_controller(f.as_raw_fd()) {
 		Err(e) => {
 			eprintln!("There was an error obtaining NVMe identity information:\n{:?}",e);
 			return None;
@@ -163,7 +164,7 @@ fn security_set_password_master(f: &File, password: [u8;32], id: u16) -> Result<
 fn security_unlock(f: &File, password: [u8;32], master: bool) -> Result<()> {
 	let buf: [u8;36]=AtaSecurityPassword::new(password,master,None,None).into();
 	try!(ops::security_send(f.as_raw_fd(),ProtocolAtaSecurity.into(),AtaSecuritySpecific::Unlock as u16,0,Some(&buf)));
-	ops::nvme_ioctl_reset(f.as_raw_fd())
+	ops::ioctl_blkrrpart(f.as_raw_fd())
 }
 
 fn security_erase(f: &File, password: [u8;32], master: bool, enhanced: bool) -> Result<()> {
@@ -285,6 +286,17 @@ Options:
 			return;
 		},
 		Ok(f) => f,
+	};
+	match f.metadata() {
+		Err(e) => {
+			eprintln!("Unable to stat {}: {}",args.arg_dev,e);
+			return;
+		},
+		Ok(ref m) if !m.file_type().is_block_device() => {
+			eprintln!("{} is not a block device",args.arg_dev);
+			return;
+		},
+		Ok(_) => {},
 	};
 	
 	if args.cmd_query {
