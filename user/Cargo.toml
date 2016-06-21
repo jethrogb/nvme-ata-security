@@ -14,3 +14,4 @@ docopt = "0.6.80"           # Unlicense/MIT
 rustc-serialize = "0.3.19"  # MIT/Apache-2.0
 libc = "0.2.12"             # MIT/Apache-2.0
 rpassword = "0.2.2"         # MIT? Apache? https://github.com/conradkleinespel/rustastic-password/issues/15
+rust-crypto = "0.2.36"      # MIT/Apache-2.0

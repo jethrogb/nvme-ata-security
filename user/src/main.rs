@@ -18,6 +18,7 @@ extern crate docopt;
 extern crate rustc_serialize;
 extern crate libc;
 extern crate rpassword;
+extern crate crypto;
 
 mod ops;
 mod nvme;
@@ -26,9 +27,15 @@ use std::os::unix::io::AsRawFd;
 use std::os::unix::fs::FileTypeExt;
 use std::fs::File;
 use std::io::{Read,Write,self};
+use std::fmt;
+use std::result::Result as StdResult;
+
+use crypto::digest::Digest;
+use crypto::sha2::Sha256;
 
 use ops::Result;
-use nvme::security::{AtaSecuritySpecific,AtaSecurityPassword};
+use nvme::identify::IdentifyController;
+use nvme::security::{AtaSecurityIdentify,AtaSecuritySpecific,AtaSecurityPassword};
 use nvme::security::Protocol::AtaSecurity as ProtocolAtaSecurity;
 
 macro_rules! eprintln {
@@ -41,7 +48,7 @@ macro_rules! eprint {
     ($fmt:expr, $($arg:tt)*) => (let _=write!(::std::io::stderr(),$fmt, $($arg)*));
 }
 
-fn security_protocols(f: &File, identity: &nvme::identify::IdentifyController) -> Result<Option<Vec<nvme::security::Protocol>>> {
+fn security_protocols(f: &File, identity: &IdentifyController) -> Result<Option<Vec<nvme::security::Protocol>>> {
 	use byteorder::{BigEndian,ReadBytesExt};
 	
 	let fd=f.as_raw_fd();
@@ -61,94 +68,105 @@ fn security_protocols(f: &File, identity: &nvme::identify::IdentifyController) -
 	}
 }
 
-fn ata_identify(f: &File, protocols: &[nvme::security::Protocol]) -> Result<Option<nvme::security::AtaSecurityIdentify>> {
+fn ata_identify(f: &File, protocols: &[nvme::security::Protocol]) -> Result<Option<AtaSecurityIdentify>> {
 	if !protocols.contains(&ProtocolAtaSecurity) {
 		return Ok(None);
 	}
 	
 	let mut buf=[0u8;16];
 	try!(ops::security_receive(f.as_raw_fd(),ProtocolAtaSecurity.into(),0,0,&mut buf));
-	Ok(Some(nvme::security::AtaSecurityIdentify::from(buf)))
+	Ok(Some(AtaSecurityIdentify::from(buf)))
 }
 
-fn query(f: &File) {
-	let i=match ops::identify_controller(f.as_raw_fd()) {
-		Err(e) => {
-			eprintln!("There was an error obtaining NVMe identity information:\n{:?}",e);
-			return;
-		},
-		Ok(i) => i,
-	};
-	eprintln!("vid:ssvid: {:04x}:{:04x}
+struct DriveInfo(Result<(
+		IdentifyController,Result<(Option<(
+		Vec<nvme::security::Protocol>,Result<Option<
+		AtaSecurityIdentify
+>>)>)>)>);
+
+impl fmt::Display for DriveInfo {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
+		let r_i=&self.0;
+		let (i,r_p)=match r_i {
+			&Err(ref e) => {
+				try!(writeln!(fmt,"There was an error obtaining NVMe identity information:\n{:?}",e));
+				return Ok(());
+			},
+			&Ok((ref i,ref r_p)) => (i,r_p),
+		};
+		try!(writeln!(fmt,"vid:ssvid: {:04x}:{:04x}
 model: {}
 serial: {}
 firmware: {}
-oacs: {:?}",i.vid(),i.ssvid(),std::str::from_utf8(i.sn()).unwrap(),std::str::from_utf8(i.mn()).unwrap(),std::str::from_utf8(i.fr()).unwrap(),i.oacs());
-	let protocols=match security_protocols(&f,&i) {
-		Err(e) => {
-			eprintln!("There was an error enumerating supported NVMe security protocols:\n{:?}",e);
-			return;
-		},
-		Ok(None) => {
-			eprintln!("This drive does not support NVMe security commands.");
-			return;
-		},
-		Ok(Some(p)) => p,
-	};
-	eprintln!("protocols: {:?}",protocols);
-	let security=match ata_identify(&f,&protocols) {
-		Err(e) => {
-			eprintln!("There was an error obtaining ATA security information:\n{:?}",e);
-			return;
-		},
-		Ok(None) => {
-			eprintln!("This drive does not support ATA security commands.");
-			return;
-		},
-		Ok(Some(s)) => s,
-	};
-	eprintln!("ata security: erase time: {} enhanced erase time: {}, master pwd id: {:04x} maxset: {} 
-s_suprt: {} s_enabld: {} locked: {} frozen: {} pwncntex: {} en_er_sup: {}",security.security_erase_time(),security.enhanced_security_erase_time(),security.master_password_identifier(),security.maxset(),security.s_suprt(),security.s_enabld(),security.locked(),security.frozen(),security.pwncntex(),security.en_er_sup());
-	if !security.s_suprt() {
-		eprintln!("This drive does not support ATA security.");
+oacs: {:?}",i.vid(),i.ssvid(),String::from_utf8_lossy(i.sn()),String::from_utf8_lossy(i.mn()),String::from_utf8_lossy(i.fr()),i.oacs()));
+		let (protocols,r_s)=match r_p {
+			&Err(ref e) => {
+				try!(writeln!(fmt,"There was an error enumerating supported NVMe security protocols:\n{:?}",e));
+				return Ok(());
+			},
+			&Ok(None) => {
+				try!(writeln!(fmt,"This drive does not support NVMe security commands."));
+				return Ok(());
+			},
+			&Ok(Some((ref p,ref r_s))) => (p,r_s),
+		};
+		try!(writeln!(fmt,"protocols: {:?}",protocols));
+		let security=match r_s {
+			&Err(ref e) => {
+				try!(writeln!(fmt,"There was an error obtaining ATA security information:\n{:?}",e));
+				return Ok(());
+			},
+			&Ok(None) => {
+				try!(writeln!(fmt,"This drive does not support ATA security commands."));
+				return Ok(());
+			},
+			&Ok(Some(ref s)) => s,
+		};
+		try!(writeln!(fmt,"ata security: erase time: {} enhanced erase time: {}, master pwd id: {:04x} maxset: {}
+s_suprt: {} s_enabld: {} locked: {} frozen: {} pwncntex: {} en_er_sup: {}",security.security_erase_time(),security.enhanced_security_erase_time(),security.master_password_identifier(),security.maxset(),security.s_suprt(),security.s_enabld(),security.locked(),security.frozen(),security.pwncntex(),security.en_er_sup()));
+		if !security.s_suprt() {
+			try!(writeln!(fmt,"This drive does not support ATA security."));
+		}
+		Ok(())
 	}
 }
 
-fn check_support(f: &File) -> Option<nvme::security::AtaSecurityIdentify> {
-	let i=match ops::identify_controller(f.as_raw_fd()) {
-		Err(e) => {
-			eprintln!("There was an error obtaining NVMe identity information:\n{:?}",e);
-			return None;
-		},
-		Ok(i) => i,
-	};
-	let protocols=match security_protocols(&f,&i) {
-		Err(e) => {
-			eprintln!("There was an error enumerating supported NVMe security protocols:\n{:?}",e);
-			return None;
-		},
-		Ok(None) => {
-			eprintln!("This drive does not support NVMe security commands.");
-			return None;
-		},
-		Ok(Some(p)) => p,
-	};
-	let security=match ata_identify(&f,&protocols) {
-		Err(e) => {
-			eprintln!("There was an error obtaining ATA security information:\n{:?}",e);
-			return None;
-		},
-		Ok(None) => {
-			eprintln!("This drive does not support ATA security commands.");
-			return None;
-		},
-		Ok(Some(s)) => s,
-	};
-	if !security.s_suprt() {
-		eprintln!("This drive does not support ATA security.");
-		return None;
+impl DriveInfo {
+	fn query(f: &File) -> DriveInfo {
+		DriveInfo(ops::identify_controller(f.as_raw_fd()).map(|i|{
+			let p=security_protocols(&f,&i).map(|opt_p|opt_p.map(|p|{
+				let s=ata_identify(&f,&p);
+				(p,s)
+			}));
+			(i,p)
+		}))
 	}
-	Some(security)
+
+	fn check_support(self) -> Option<(IdentifyController,AtaSecurityIdentify)> {
+		match self.0 {
+			Err(e) => {
+				eprintln!("There was an error obtaining NVMe identity information:\n{:?}",e);
+				None
+			},
+			Ok((_,Err(e))) => {
+				eprintln!("There was an error enumerating supported NVMe security protocols:\n{:?}",e);
+				None
+			},
+			Ok((_,Ok(None))) => {
+				eprintln!("This drive does not support NVMe security commands.");
+				None
+			},
+			Ok((_,Ok(Some((_,Err(e)))))) => {
+				eprintln!("There was an error obtaining ATA security information:\n{:?}",e);
+				None
+			},
+			Ok((_,Ok(Some((_,Ok(None)))))) => {
+				eprintln!("This drive does not support ATA security commands.");
+				None
+			},
+			Ok((i,Ok(Some((_,Ok(Some(s))))))) => Some((i,s)),
+		}
+	}
 }
 
 fn security_set_password_user(f: &File, password: [u8;32], maximum_security: bool) -> Result<()> {
@@ -182,7 +200,7 @@ fn security_disable_password(f: &File, password: [u8;32], master: bool) -> Resul
 	ops::security_send(f.as_raw_fd(),ProtocolAtaSecurity.into(),AtaSecuritySpecific::DisablePassword as u16,0,Some(&buf))
 }
 
-fn read_password_err(src: Option<String>, confirm: bool) -> std::result::Result<[u8;32],io::Error> {
+fn read_password_err(src: Option<String>, identity: &IdentifyController, confirm: bool) -> std::result::Result<[u8;32],io::Error> {
 	let mut f_file;
 	let mut f_stdin;
 	let f_password;
@@ -193,7 +211,7 @@ fn read_password_err(src: Option<String>, confirm: bool) -> std::result::Result<
 	} else {
 		if unsafe{libc::isatty(0)}==1 {
 			loop {
-				eprint!("Please enter password:");
+				eprint!("Please enter password for {} {}:",String::from_utf8_lossy(identity.mn()).trim(),String::from_utf8_lossy(identity.sn()).trim());
 				let password1=try!(rpassword::read_password());
 				if password1.len()==0 {
 					continue;
@@ -219,17 +237,20 @@ fn read_password_err(src: Option<String>, confirm: bool) -> std::result::Result<
 			&mut f_stdin
 		}
 	};
-	let mut buf=[0u8;32];
-	io::copy(&mut f.take(32),&mut &mut buf[..]).and_then(|n|
-		if n==0 {
-			Err(io::Error::new(io::ErrorKind::UnexpectedEof,"zero bytes read"))
-		} else {
-			Ok(buf)
-		})
+
+	let mut buf=vec![];
+	try!(f.read_to_end(&mut buf));
+	let mut out=[0u8;32];
+	let mut sha256=Sha256::new();
+	sha256.input(&buf);
+	sha256.input(&identity.mn());
+	sha256.input(&identity.sn());
+	sha256.result(&mut out);
+	Ok(out)
 }
 
-fn read_password(src: Option<String>, confirm: bool) -> [u8;32] {
-	match read_password_err(src,confirm) {
+fn read_password(src: Option<String>, identity: &IdentifyController, confirm: bool) -> [u8;32] {
+	match read_password_err(src,identity,confirm) {
 		Err(e) => {
 			eprintln!("Error trying to read password: {}",e);
 			std::process::exit(1);
@@ -299,29 +320,33 @@ Options:
 		Ok(_) => {},
 	};
 	
-	if args.cmd_query {
-		query(&f);
+	let info=DriveInfo::query(&f);
+	let identity=if args.cmd_query {
+		eprint!("{}",info);
 		return;
 	} else {
-		check_support(&f);
-	}
+		match info.check_support() {
+			Some((identity,_)) => identity,
+			None => { return; },
+		}
+	};
 	
 	let result=if args.cmd_set_password {
 		eprintln!("Performing SECURITY SET PASSWORD...");
 		if args.flag_user {
-			security_set_password_user(&f,read_password(args.flag_password_file,true),args.flag_max)
+			security_set_password_user(&f,read_password(args.flag_password_file,&identity,true),args.flag_max)
 		} else {
-			security_set_password_master(&f,read_password(args.flag_password_file,true),args.flag_id)
+			security_set_password_master(&f,read_password(args.flag_password_file,&identity,true),args.flag_id)
 		}
 	} else if args.cmd_unlock {
 		eprintln!("Performing SECURITY UNLOCK...");
-		security_unlock(&f,read_password(args.flag_password_file,false),args.flag_master)
+		security_unlock(&f,read_password(args.flag_password_file,&identity,false),args.flag_master)
 	} else if args.cmd_disable_password {
 		eprintln!("Performing SECURITY DISABLE PASSWORD...");
-		security_disable_password(&f,read_password(args.flag_password_file,false),args.flag_master)
+		security_disable_password(&f,read_password(args.flag_password_file,&identity,false),args.flag_master)
 	} else if args.cmd_erase {
 		eprintln!("Performing SECURITY ERASE...");
-		security_erase(&f,read_password(args.flag_password_file,true),args.flag_master,args.flag_enhanced)
+		security_erase(&f,read_password(args.flag_password_file,&identity,true),args.flag_master,args.flag_enhanced)
 	} else if args.cmd_freeze {
 		eprintln!("Performing SECURITY FREEZE...");
 		security_freeze(&f)
