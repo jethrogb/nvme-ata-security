@@ -39,13 +39,13 @@ use nvme::security::{AtaSecurityIdentify,AtaSecuritySpecific,AtaSecurityPassword
 use nvme::security::Protocol::AtaSecurity as ProtocolAtaSecurity;
 
 macro_rules! eprintln {
-    ($fmt:expr) => (let _=write!(::std::io::stderr(),concat!($fmt, "\n")));
-    ($fmt:expr, $($arg:tt)*) => (let _=write!(::std::io::stderr(),concat!($fmt, "\n"), $($arg)*));
+	($fmt:expr) => (let _=write!(::std::io::stderr(),concat!($fmt, "\n")));
+	($fmt:expr, $($arg:tt)*) => (let _=write!(::std::io::stderr(),concat!($fmt, "\n"), $($arg)*));
 }
 
 macro_rules! eprint {
-    ($fmt:expr) => (let _=write!(::std::io::stderr(),$fmt));
-    ($fmt:expr, $($arg:tt)*) => (let _=write!(::std::io::stderr(),$fmt, $($arg)*));
+	($fmt:expr) => (let _=write!(::std::io::stderr(),$fmt));
+	($fmt:expr, $($arg:tt)*) => (let _=write!(::std::io::stderr(),$fmt, $($arg)*));
 }
 
 fn security_protocols(f: &File, identity: &IdentifyController) -> Result<Option<Vec<nvme::security::Protocol>>> {
@@ -85,7 +85,7 @@ struct DriveInfo(Result<(
 >>)>)>)>);
 
 impl fmt::Display for DriveInfo {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
+	fn fmt(&self, fmt: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
 		let r_i=&self.0;
 		let (i,r_p)=match r_i {
 			&Err(ref e) => {
@@ -276,7 +276,7 @@ struct Args {
 	flag_master: bool,
 	flag_high: bool,
 	flag_max: bool,
-    flag_enhanced: bool,
+	flag_enhanced: bool,
 }
 
 const USAGE: &'static str = "
@@ -291,13 +291,13 @@ Usage:
 	nvme-ata-security --help
 	
 Options:
-    -u, --user                         Specify the user password
-    -m, --master                       Specify the master password
-    -i <file>, --password-file=<file>  Read the password from <file> instead of stdin
-    --high                             Configure high security
-    --max                              Configure maximum security
-    --id=<id>                          Set the master password identifier
-    --enhanced                         Perform an enhanced security erase
+	-u, --user                         Specify the user password
+	-m, --master                       Specify the master password
+	-i <file>, --password-file=<file>  Read the password from <file> instead of stdin
+	--high                             Configure high security
+	--max                              Configure maximum security
+	--id=<id>                          Set the master password identifier
+	--enhanced                         Perform an enhanced security erase
 ";
 
 	let args: Args = docopt::Docopt::new(USAGE).and_then(|d|d.argv(std::env::args()).decode()).unwrap_or_else(|e|e.exit());
