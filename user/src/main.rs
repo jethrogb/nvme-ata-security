@@ -39,7 +39,7 @@ use nvme::security::{AtaSecurityIdentify,AtaSecuritySpecific,AtaSecurityPassword
 use nvme::security::Protocol::AtaSecurity as ProtocolAtaSecurity;
 
 macro_rules! eprintln {
-	($fmt:expr) => (let _=write!(::std::io::stderr(),concat!($fmt, "\n")));
+	($fmt:expr) => ({let _=write!(::std::io::stderr(),concat!($fmt, "\n"));});
 	($fmt:expr, $($arg:tt)*) => (let _=write!(::std::io::stderr(),concat!($fmt, "\n"), $($arg)*));
 }
 
@@ -259,6 +259,34 @@ fn read_password(src: Option<String>, identity: &IdentifyController, confirm: bo
 	}
 }
 
+trait RetryIterator: Iterator {
+	fn retry_results<T, E>(&mut self) -> std::result::Result<T, E> where Self: Iterator<Item=std::result::Result<T, E>> {
+		let mut last=None;
+		loop {
+			let cur=self.next();
+			match cur {
+				Some(v @ Ok(_)) => { return v; },
+				Some(e @ Err(_)) => { last=Some(e); },
+				None => if let Some(e) = last { return e; },
+			}
+		}
+	}
+
+	fn retry_options<T>(&mut self) -> Option<T> where Self: Iterator<Item=Option<T>> {
+		let mut last=None;
+		loop {
+			let cur=self.next();
+			match cur {
+				Some(v @ Some(_)) => { return v; },
+				Some(e @ None) => { last=Some(e); },
+				None => if let Some(e) = last { return e; },
+			}
+		}
+	}
+}
+
+impl<T: Iterator> RetryIterator for T {}
+
 fn main() {
 #[derive(RustcDecodable,Debug)]
 #[allow(dead_code)]
@@ -271,6 +299,7 @@ struct Args {
 	cmd_freeze: bool,
 	arg_dev: String,
 	flag_password_file: Option<String>,
+	flag_tries: Option<u8>,
 	flag_id: u16,
 	flag_user: bool,
 	flag_master: bool,
@@ -284,7 +313,7 @@ Usage:
 	nvme-ata-security query <dev>
 	nvme-ata-security set-password -u (--high|--max) [--password-file=<file>] <dev>
 	nvme-ata-security set-password -m --id=<id> [--password-file=<file>] <dev>
-	nvme-ata-security unlock (-u|-m) [--password-file=<file>] <dev>
+	nvme-ata-security unlock (-u|-m) [--password-file=<file>|--tries=<num>] <dev>
 	nvme-ata-security disable-password (-u|-m) [--password-file=<file>] <dev>
 	nvme-ata-security erase (-u|-m) [--enhanced] [--password-file=<file>] <dev>
 	nvme-ata-security freeze <dev>
@@ -294,6 +323,7 @@ Options:
 	-u, --user                         Specify the user password
 	-m, --master                       Specify the master password
 	-i <file>, --password-file=<file>  Read the password from <file> instead of stdin
+	-t <num>, --tries=<num>            When reading from stdin, try unlocking <num> times
 	--high                             Configure high security
 	--max                              Configure maximum security
 	--id=<id>                          Set the master password identifier
@@ -339,8 +369,16 @@ Options:
 			security_set_password_master(&f,read_password(args.flag_password_file,&identity,true),args.flag_id)
 		}
 	} else if args.cmd_unlock {
-		eprintln!("Performing SECURITY UNLOCK...");
-		security_unlock(&f,read_password(args.flag_password_file,&identity,false),args.flag_master)
+		if let Some(_)=args.flag_password_file {
+			eprintln!("Performing SECURITY UNLOCK...");
+			security_unlock(&f,read_password(args.flag_password_file,&identity,false),args.flag_master)
+		} else {
+			if args.flag_tries==Some(0) { return }
+			std::iter::repeat(()).take(args.flag_tries.unwrap_or(1) as usize).map(|_|{
+				eprintln!("Performing SECURITY UNLOCK...");
+				security_unlock(&f,read_password(None,&identity,false),args.flag_master)
+			}).retry_results()
+		}
 	} else if args.cmd_disable_password {
 		eprintln!("Performing SECURITY DISABLE PASSWORD...");
 		security_disable_password(&f,read_password(args.flag_password_file,&identity,false),args.flag_master)
