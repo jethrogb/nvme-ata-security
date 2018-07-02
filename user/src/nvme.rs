@@ -13,12 +13,12 @@
 
 #[repr(u8)]
 pub enum Opcode {
-	AdminIdentify        = 0x06,
-	AdminSecuritySend    = 0x81,
+	AdminIdentify = 0x06,
+	AdminSecuritySend = 0x81,
 	AdminSecurityReceive = 0x82,
 }
 
-#[derive(Debug,PartialEq,Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum StatusCode {
 	SuccessfulCompletion,                           // 0x000
 	InvalidCommandOpcode,                           // 0x001
@@ -99,7 +99,7 @@ pub enum StatusCode {
 impl From<u16> for StatusCode {
 	fn from(status: u16) -> StatusCode {
 		use self::StatusCode::*;
-		match status&0x7ff {
+		match status & 0x7ff {
 			0x000 => SuccessfulCompletion,
 			0x001 => InvalidCommandOpcode,
 			0x002 => InvalidFieldInCommand,
@@ -169,22 +169,22 @@ impl From<u16> for StatusCode {
 			0x285 => CompareFailure,
 			0x286 => AccessDenied,
 			0x287 => DeallocatedOrUnwrittenLogicalBlock,
-			status @ 0x000 ... 0x0ff => UnknownGenericStatus(status),
-			status @ 0x100 ... 0x1ff => UnknownCommandSpecificStatus(status),
-			status @ 0x200 ... 0x2ff => UnknownIntegrityError(status),
-			status @ 0x700 ... 0x7ff => UnknownVendorSpecificStatus(status),
-			status @ _               => UnknownStatus(status),
+			status @ 0x000...0x0ff => UnknownGenericStatus(status),
+			status @ 0x100...0x1ff => UnknownCommandSpecificStatus(status),
+			status @ 0x200...0x2ff => UnknownIntegrityError(status),
+			status @ 0x700...0x7ff => UnknownVendorSpecificStatus(status),
+			status @ _ => UnknownStatus(status),
 		}
 	}
 }
 
 pub mod identify {
-	use byteorder::{LittleEndian,ReadBytesExt};
+	use byteorder::{LittleEndian, ReadBytesExt};
 
-	pub struct IdentifyController([u8;4096]);
+	pub struct IdentifyController([u8; 4096]);
 
-	impl From<[u8;4096]> for IdentifyController {
-		fn from(array: [u8;4096]) -> Self {
+	impl From<[u8; 4096]> for IdentifyController {
+		fn from(array: [u8; 4096]) -> Self {
 			IdentifyController(array)
 		}
 	}
@@ -209,7 +209,7 @@ pub mod identify {
 		pub fn fr(&self) -> &[u8] {
 			&self.0[64..72]
 		}
-		
+
 		pub fn oacs(&self) -> Oacs {
 			Oacs::from_bits_truncate((&self.0[256..258]).read_u16::<LittleEndian>().unwrap())
 		}
@@ -238,10 +238,10 @@ pub mod identify {
 }
 
 pub mod security {
-	use byteorder::{BigEndian,ReadBytesExt,WriteBytesExt};
+	use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 	use std::io::Write;
 
-	#[derive(Debug,PartialEq,Eq)]
+	#[derive(Debug, PartialEq, Eq)]
 	pub enum Protocol {
 		Info,                        // 0x00
 		Tcg(u8),                     // 0x01 ... 0x06
@@ -256,50 +256,48 @@ pub mod security {
 		Ieee1667,                    // 0xee
 		AtaSecurity,                 // 0xef
 		Vendor(u8),                  // 0xf0 ... 0xff
-		Other(u8)
+		Other(u8),
 	}
 
 	impl From<u8> for Protocol {
 		fn from(prot: u8) -> Protocol {
 			use self::Protocol::*;
 			match prot {
-				0x00          => Info,
-				0x01 ... 0x06 => Tcg(prot),
-				0x07          => CbCs,
-				0x20          => TapeDataEncryption,
-				0x21          => DataEncryptionConfiguration,
-				0x40          => SaCreationCapabilities,
-				0x41          => IkeV2Scsi,
-				0xea          => Nvme,
-				0xec          => JedecUniversalFlashStorage,
-				0xed          => SdCardTrusteFlash,
-				0xee          => Ieee1667,
-				0xef          => AtaSecurity,
-				0xf0 ... 0xff => Vendor(prot),
-				_             => Other(prot),
+				0x00 => Info,
+				0x01...0x06 => Tcg(prot),
+				0x07 => CbCs,
+				0x20 => TapeDataEncryption,
+				0x21 => DataEncryptionConfiguration,
+				0x40 => SaCreationCapabilities,
+				0x41 => IkeV2Scsi,
+				0xea => Nvme,
+				0xec => JedecUniversalFlashStorage,
+				0xed => SdCardTrusteFlash,
+				0xee => Ieee1667,
+				0xef => AtaSecurity,
+				0xf0...0xff => Vendor(prot),
+				_ => Other(prot),
 			}
 		}
 	}
-	
+
 	impl Into<u8> for Protocol {
 		fn into(self) -> u8 {
 			use self::Protocol::*;
 			match self {
-				Info                        => 0x00,
-				CbCs                        => 0x07,
-				TapeDataEncryption          => 0x20,
+				Info => 0x00,
+				CbCs => 0x07,
+				TapeDataEncryption => 0x20,
 				DataEncryptionConfiguration => 0x21,
-				SaCreationCapabilities      => 0x40,
-				IkeV2Scsi                   => 0x41,
-				Nvme                        => 0xea,
-				JedecUniversalFlashStorage  => 0xec,
-				SdCardTrusteFlash           => 0xed,
-				Ieee1667                    => 0xee,
-				AtaSecurity                 => 0xef,
-				Tcg(prot) | Vendor(prot)
-					| Other(prot)           => prot,
+				SaCreationCapabilities => 0x40,
+				IkeV2Scsi => 0x41,
+				Nvme => 0xea,
+				JedecUniversalFlashStorage => 0xec,
+				SdCardTrusteFlash => 0xed,
+				Ieee1667 => 0xee,
+				AtaSecurity => 0xef,
+				Tcg(prot) | Vendor(prot) | Other(prot) => prot,
 			}
-
 		}
 	}
 
@@ -308,16 +306,16 @@ pub mod security {
 		SupportedProtocols = 0,
 		CertificateData = 1,
 	}
-	
-	pub struct AtaSecurityIdentify([u8;16]);
 
-	impl From<[u8;16]> for AtaSecurityIdentify {
-		fn from(array: [u8;16]) -> Self {
-			assert_eq!(array[1],0xe);
+	pub struct AtaSecurityIdentify([u8; 16]);
+
+	impl From<[u8; 16]> for AtaSecurityIdentify {
+		fn from(array: [u8; 16]) -> Self {
+			assert_eq!(array[1], 0xe);
 			AtaSecurityIdentify(array)
 		}
 	}
-	
+
 	impl AtaSecurityIdentify {
 		pub fn security_erase_time(&self) -> u16 {
 			(&self.0[2..4]).read_u16::<BigEndian>().unwrap()
@@ -332,41 +330,41 @@ pub mod security {
 		}
 
 		pub fn maxset(&self) -> bool {
-			const MAXSET:    u8 = 0x01;
-			(self.0[8]&MAXSET)==MAXSET
+			const MAXSET: u8 = 0x01;
+			(self.0[8] & MAXSET) == MAXSET
 		}
 
 		pub fn s_suprt(&self) -> bool {
-			const S_SUPRT:   u8 = 0x01;
-			(self.0[9]&S_SUPRT)==S_SUPRT
+			const S_SUPRT: u8 = 0x01;
+			(self.0[9] & S_SUPRT) == S_SUPRT
 		}
 
 		pub fn s_enabld(&self) -> bool {
-			const S_ENABLD:  u8 = 0x02;
-			(self.0[9]&S_ENABLD)==S_ENABLD
+			const S_ENABLD: u8 = 0x02;
+			(self.0[9] & S_ENABLD) == S_ENABLD
 		}
 
 		pub fn locked(&self) -> bool {
-			const LOCKED:    u8 = 0x04;
-			(self.0[9]&LOCKED)==LOCKED
+			const LOCKED: u8 = 0x04;
+			(self.0[9] & LOCKED) == LOCKED
 		}
 
 		pub fn frozen(&self) -> bool {
-			const FROZEN:    u8 = 0x08;
-			(self.0[9]&FROZEN)==FROZEN
+			const FROZEN: u8 = 0x08;
+			(self.0[9] & FROZEN) == FROZEN
 		}
 
 		pub fn pwncntex(&self) -> bool {
-			const PWCNTEX:   u8 = 0x10;
-			(self.0[9]&PWCNTEX)==PWCNTEX
+			const PWCNTEX: u8 = 0x10;
+			(self.0[9] & PWCNTEX) == PWCNTEX
 		}
 
 		pub fn en_er_sup(&self) -> bool {
 			const EN_ER_SUP: u8 = 0x20;
-			(self.0[9]&EN_ER_SUP)==EN_ER_SUP
+			(self.0[9] & EN_ER_SUP) == EN_ER_SUP
 		}
 	}
-	
+
 	#[repr(u16)]
 	pub enum AtaSecuritySpecific {
 		SetPassword = 1,     // flag = maximum security?
@@ -376,28 +374,33 @@ pub mod security {
 		FreezeLock = 5,      // no data
 		DisablePassword = 6, // no flag
 	}
-	
+
 	#[repr(packed)]
-	pub struct AtaSecurityPassword([u8;36]);
-	
+	pub struct AtaSecurityPassword([u8; 36]);
+
 	impl AtaSecurityPassword {
-		pub fn new(password: [u8;32], master_password: bool, flag: Option<bool>, master_password_id: Option<u16>) -> AtaSecurityPassword {
-			let mut buf=[0u8;36];
+		pub fn new(
+			password: [u8; 32],
+			master_password: bool,
+			flag: Option<bool>,
+			master_password_id: Option<u16>,
+		) -> AtaSecurityPassword {
+			let mut buf = [0u8; 36];
 			{
-				let mut ptr=&mut buf[..];
+				let mut ptr = &mut buf[..];
 				ptr.write_u8(flag.unwrap_or(false) as u8).unwrap();
 				ptr.write_u8(master_password as u8).unwrap();
 				ptr.write_all(&password).unwrap();
-				ptr.write_u16::<BigEndian>(master_password_id.unwrap_or(0)).unwrap();
+				ptr.write_u16::<BigEndian>(master_password_id.unwrap_or(0))
+					.unwrap();
 			}
 			AtaSecurityPassword(buf)
 		}
 	}
-	
-	impl Into<[u8;36]> for AtaSecurityPassword {
-		fn into(self) -> [u8;36] {
+
+	impl Into<[u8; 36]> for AtaSecurityPassword {
+		fn into(self) -> [u8; 36] {
 			self.0
 		}
 	}
 }
-
