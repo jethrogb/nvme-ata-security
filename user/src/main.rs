@@ -25,6 +25,7 @@ extern crate sha2;
 
 mod nvme;
 mod ops;
+mod rand;
 
 use std::fmt;
 use std::fs::File;
@@ -424,6 +425,8 @@ trait RetryIterator: Iterator {
 impl<T: Iterator> RetryIterator for T {}
 
 fn main() {
+	rand::init();
+
 	#[derive(Deserialize, Debug)]
 	struct Args {
 		cmd_query: bool,
