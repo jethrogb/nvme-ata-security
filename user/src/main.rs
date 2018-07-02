@@ -8,6 +8,7 @@
  * Software Foundation; either version 2 of the License, or (at your option)
  * any later version.
  */
+#![deny(warnings)]
 
 #[macro_use]
 extern crate nix;
@@ -424,7 +425,6 @@ impl<T: Iterator> RetryIterator for T {}
 
 fn main() {
 	#[derive(Deserialize, Debug)]
-	#[allow(dead_code)]
 	struct Args {
 		cmd_query: bool,
 		cmd_set_password: bool,

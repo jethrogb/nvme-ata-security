@@ -9,8 +9,6 @@
  * any later version.
  */
 
-#![allow(dead_code)]
-
 #[repr(u8)]
 pub enum Opcode {
 	AdminIdentify = 0x06,
@@ -302,6 +300,7 @@ pub mod security {
 	}
 
 	#[repr(u16)]
+	#[allow(dead_code)]
 	pub enum SecurityProtocolInformationSpecific {
 		SupportedProtocols = 0,
 		CertificateData = 1,
