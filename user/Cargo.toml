@@ -7,11 +7,12 @@ license = "GPL-2.0+"
 repository = "https://github.com/jethrogb/nvme-ata-security/tree/master/user"
 
 [dependencies]
-ioctl = "0.3.3"             # MIT/Apache-2.0 (per 7205d48)
-byteorder = "0.5.3"         # Unlicense/MIT
-bitflags = "0.7.0"          # MIT/Apache-2.0
-docopt = "0.6.80"           # Unlicense/MIT
-rustc-serialize = "0.3.19"  # MIT/Apache-2.0
+nix = "0.11.0"              # MIT
+byteorder = "1.2.3"         # Unlicense/MIT
+bitflags = "1"              # MIT/Apache-2.0
+docopt = "1"                # Unlicense/MIT
+serde = "1"                 # MIT/Apache-2.0
+serde_derive = "1"          # MIT/Apache-2.0
 libc = "0.2.12"             # MIT/Apache-2.0
-rpassword = "0.2.2"         # MIT? Apache? https://github.com/conradkleinespel/rustastic-password/issues/15
-rust-crypto = "0.2.36"      # MIT/Apache-2.0
+rpassword = "2"             # Apache 2.0
+sha2 = "0.7.1"              # MIT/Apache-2.0

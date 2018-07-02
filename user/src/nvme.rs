@@ -216,23 +216,23 @@ pub mod identify {
 	}
 
 	bitflags! {
-		pub flags Oacs: u16 {
-			const OACS_SECURITY       = 0x0001,
-			const OACS_FORMAT         = 0x0002,
-			const OACS_FIRMWARE       = 0x0004,
-			const OACS_NAMESPACE      = 0x0008,
-			const OACS_RESERVED1      = 0x0010,
-			const OACS_RESERVED2      = 0x0020,
-			const OACS_RESERVED3      = 0x0040,
-			const OACS_RESERVED4      = 0x0080,
-			const OACS_RESERVED5      = 0x0100,
-			const OACS_RESERVED6      = 0x0200,
-			const OACS_RESERVED7      = 0x0400,
-			const OACS_RESERVED8      = 0x0800,
-			const OACS_RESERVED9      = 0x1000,
-			const OACS_RESERVED10     = 0x2000,
-			const OACS_RESERVED11     = 0x4000,
-			const OACS_RESERVED12     = 0x8000,
+		pub struct Oacs: u16 {
+			const SECURITY       = 0x0001;
+			const FORMAT         = 0x0002;
+			const FIRMWARE       = 0x0004;
+			const NAMESPACE      = 0x0008;
+			const RESERVED1      = 0x0010;
+			const RESERVED2      = 0x0020;
+			const RESERVED3      = 0x0040;
+			const RESERVED4      = 0x0080;
+			const RESERVED5      = 0x0100;
+			const RESERVED6      = 0x0200;
+			const RESERVED7      = 0x0400;
+			const RESERVED8      = 0x0800;
+			const RESERVED9      = 0x1000;
+			const RESERVED10     = 0x2000;
+			const RESERVED11     = 0x4000;
+			const RESERVED12     = 0x8000;
 		}
 	}
 }

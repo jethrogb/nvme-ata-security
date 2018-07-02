@@ -10,17 +10,17 @@
  */
 
 use nvme;
-use std::io::Error as IoError;
+use nix::Error as NixError;
 use std::os::unix::io::RawFd;
 
 #[derive(Debug)]
 pub enum Error {
-	Io(IoError),
+	Io(NixError),
 	Nvme(nvme::StatusCode),
 }
 
-impl From<IoError> for Error {
-	fn from(err: IoError) -> Error {
+impl From<NixError> for Error {
+	fn from(err: NixError) -> Error {
 		Error::Io(err)
 	}
 }
@@ -79,10 +79,8 @@ pub fn security_receive(fd: RawFd, secp: u8, spsp: u16, nssf: u8, data: &mut [u8
 }
 
 unsafe fn nvme_ioctl_admin_cmd(fd: RawFd, mut cmd: NvmeAdminCmd) -> Result<()> {
-	let ret=raw_nvme_ioctl_admin_cmd(fd, &mut cmd);
-	if ret<0 {
-		Err(Error::Io(IoError::last_os_error()))
-	} else if ret>0 {
+	let ret=raw_nvme_ioctl_admin_cmd(fd, &mut cmd)?;
+	if ret!=0 {
 		Err(Error::Nvme(nvme::StatusCode::from(ret as u16)))
 	} else {
 		Ok(())
@@ -90,10 +88,8 @@ unsafe fn nvme_ioctl_admin_cmd(fd: RawFd, mut cmd: NvmeAdminCmd) -> Result<()> {
 }
 
 pub fn ioctl_blkrrpart(fd: RawFd) -> Result<()> {
-	let ret=unsafe{raw_ioctl_blkrrpart(fd)};
-	if ret<0 {
-		Err(Error::Io(IoError::last_os_error()))
-	} else if ret>0 {
+	let ret=unsafe{raw_ioctl_blkrrpart(fd)}?;
+	if ret!=0 {
 		panic!("Unexpected return value from BLKRRPART ioctl: {}",ret);
 	} else {
 		Ok(())
@@ -101,17 +97,14 @@ pub fn ioctl_blkrrpart(fd: RawFd) -> Result<()> {
 }
 
 pub fn nvme_ioctl_id(fd: RawFd) -> Result<u32> {
-	let ret=unsafe{raw_nvme_ioctl_id(fd)};
-	if ret<0 {
-		Err(Error::Io(IoError::last_os_error()))
-	} else {
-		Ok(ret as u32)
-	}
+	let ret=unsafe{raw_nvme_ioctl_id(fd)}?;
+	Ok(ret as u32)
 }
 
 use self::ioctl::*;
 mod ioctl {
 	#[derive(Default)]
+	#[repr(packed,C)]
 	pub struct NvmeAdminCmd {
 		pub opcode:       u8,
 		pub flags:        u8,
@@ -133,8 +126,8 @@ mod ioctl {
 		pub result:       u32,
 	}
 
-	ioctl!(none raw_nvme_ioctl_id with b'N', 0x40);
-	ioctl!(readwrite raw_nvme_ioctl_admin_cmd with b'N', 0x41; NvmeAdminCmd);
+	ioctl_none!(raw_nvme_ioctl_id, b'N', 0x40);
+	ioctl_readwrite!(raw_nvme_ioctl_admin_cmd, b'N', 0x41, NvmeAdminCmd);
 
-	ioctl!(none raw_ioctl_blkrrpart with 0x12, 95);
+	ioctl_none!(raw_ioctl_blkrrpart, 0x12, 95);
 }

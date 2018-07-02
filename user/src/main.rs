@@ -10,15 +10,17 @@
  */
 
 #[macro_use]
-extern crate ioctl as ioctl_crate;
+extern crate nix;
 #[macro_use]
 extern crate bitflags;
 extern crate byteorder;
 extern crate docopt;
-extern crate rustc_serialize;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate libc;
 extern crate rpassword;
-extern crate crypto;
+extern crate sha2;
 
 mod ops;
 mod nvme;
@@ -26,33 +28,22 @@ mod nvme;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::fs::FileTypeExt;
 use std::fs::File;
-use std::io::{Read,Write,self};
+use std::io::{Read,self};
 use std::fmt;
 use std::result::Result as StdResult;
 
-use crypto::digest::Digest;
-use crypto::sha2::Sha256;
+use sha2::{Sha256,Digest};
 
 use ops::Result;
 use nvme::identify::IdentifyController;
 use nvme::security::{AtaSecurityIdentify,AtaSecuritySpecific,AtaSecurityPassword};
 use nvme::security::Protocol::AtaSecurity as ProtocolAtaSecurity;
 
-macro_rules! eprintln {
-	($fmt:expr) => ({let _=write!(::std::io::stderr(),concat!($fmt, "\n"));});
-	($fmt:expr, $($arg:tt)*) => (let _=write!(::std::io::stderr(),concat!($fmt, "\n"), $($arg)*));
-}
-
-macro_rules! eprint {
-	($fmt:expr) => (let _=write!(::std::io::stderr(),$fmt));
-	($fmt:expr, $($arg:tt)*) => (let _=write!(::std::io::stderr(),$fmt, $($arg)*));
-}
-
 fn security_protocols(f: &File, identity: &IdentifyController) -> Result<Option<Vec<nvme::security::Protocol>>> {
 	use byteorder::{BigEndian,ReadBytesExt};
 	
 	let fd=f.as_raw_fd();
-	if identity.oacs().contains(nvme::identify::OACS_SECURITY) {
+	if identity.oacs().contains(nvme::identify::Oacs::SECURITY) {
 		let mut supported=vec![0u8;8];
 		try!(ops::security_receive(fd,0,0,0,&mut supported));
 		let bytes=(&supported[6..8]).read_u16::<BigEndian>().unwrap();
@@ -209,7 +200,7 @@ fn read_password_err(src: Option<String>, identity: &IdentifyController, confirm
 		f_file=try!(File::open(src));
 		&mut f_file
 	} else {
-		if unsafe{libc::isatty(0)}==1 {
+		if nix::unistd::isatty(0).unwrap_or(false) {
 			loop {
 				eprint!("Please enter password for {} {}:",String::from_utf8_lossy(identity.mn()).trim(),String::from_utf8_lossy(identity.sn()).trim());
 				let password1=try!(rpassword::read_password());
@@ -245,7 +236,7 @@ fn read_password_err(src: Option<String>, identity: &IdentifyController, confirm
 	sha256.input(&buf);
 	sha256.input(&identity.mn());
 	sha256.input(&identity.sn());
-	sha256.result(&mut out);
+	out.copy_from_slice(&sha256.result());
 	Ok(out)
 }
 
@@ -288,7 +279,7 @@ trait RetryIterator: Iterator {
 impl<T: Iterator> RetryIterator for T {}
 
 fn main() {
-#[derive(RustcDecodable,Debug)]
+#[derive(Deserialize,Debug)]
 #[allow(dead_code)]
 struct Args {
 	cmd_query: bool,
@@ -330,7 +321,7 @@ Options:
 	--enhanced                         Perform an enhanced security erase
 ";
 
-	let args: Args = docopt::Docopt::new(USAGE).and_then(|d|d.argv(std::env::args()).decode()).unwrap_or_else(|e|e.exit());
+	let args: Args = docopt::Docopt::new(USAGE).and_then(|d|d.argv(std::env::args()).deserialize()).unwrap_or_else(|e|e.exit());
 	let f=match File::open(&args.arg_dev) {
 		Err(e) => {
 			eprintln!("Unable to open {} for reading: {}",args.arg_dev,e);
