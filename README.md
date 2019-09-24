@@ -20,3 +20,24 @@ mkinitcpio hook to ask for drive passwords during boot.
 ## user/
 
 Userspace tool to configure and use passwords on such drives.
+
+# Building & running
+
+nvme-ata-security is written in [Rust](https://www.rust-lang.org/). You can install it using your system's package manager (package name: `cargo`, probably) or directly, see https://www.rust-lang.org/tools/install. With Rust installed:
+
+```
+cd user
+cargo build
+```
+
+To run:
+
+```
+cargo run
+```
+
+or
+
+```
+target/debug/nvme-ata-security
+```
