@@ -169,7 +169,7 @@ oacs: {:?}",
 		try!(writeln!(
 			fmt,
 			"ata security: erase time: {} enhanced erase time: {}, master pwd id: {:04x} maxset: {}
-s_suprt: {} s_enabld: {} locked: {} frozen: {} pwncntex: {} en_er_sup: {}",
+s_suprt: {} s_enabld: {} locked: {} frozen: {} pwcntex: {} en_er_sup: {}",
 			security.security_erase_time(),
 			security.enhanced_security_erase_time(),
 			security.master_password_identifier(),
@@ -178,7 +178,7 @@ s_suprt: {} s_enabld: {} locked: {} frozen: {} pwncntex: {} en_er_sup: {}",
 			security.s_enabld(),
 			security.locked(),
 			security.frozen(),
-			security.pwncntex(),
+			security.pwcntex(),
 			security.en_er_sup()
 		));
 		if !security.s_suprt() {
