@@ -353,7 +353,7 @@ pub mod security {
 			(self.0[9] & FROZEN) == FROZEN
 		}
 
-		pub fn pwncntex(&self) -> bool {
+		pub fn pwcntex(&self) -> bool {
 			const PWCNTEX: u8 = 0x10;
 			(self.0[9] & PWCNTEX) == PWCNTEX
 		}
