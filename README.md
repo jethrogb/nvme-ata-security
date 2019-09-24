@@ -20,3 +20,14 @@ mkinitcpio hook to ask for drive passwords during boot.
 ## user/
 
 Userspace tool to configure and use passwords on such drives.
+
+# Running nvme-ata-security
+
+This project is written in Rust. Make sure `cargo` is installed. On ubuntu::
+  sudo apt install cargo
+  cd user
+  cargo build
+  
+Run the project with::
+  cd target/debug
+  ./nvme-ata-security
