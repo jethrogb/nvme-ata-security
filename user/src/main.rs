@@ -50,11 +50,11 @@ fn security_protocols(
 	let fd = f.as_raw_fd();
 	if identity.oacs().contains(nvme::identify::Oacs::SECURITY) {
 		let mut supported = vec![0u8; 8];
-		try!(ops::security_receive(fd, 0, 0, 0, &mut supported));
+		ops::security_receive(fd, 0, 0, 0, &mut supported)?;
 		let bytes = (&supported[6..8]).read_u16::<BigEndian>().unwrap();
 		if bytes > 0 {
 			supported.resize(bytes as usize + 8, 0);
-			try!(ops::security_receive(fd, 0, 0, 0, &mut supported));
+			ops::security_receive(fd, 0, 0, 0, &mut supported)?;
 			Ok(Some(
 				supported
 					.into_iter()
@@ -79,13 +79,13 @@ fn ata_identify(
 	}
 
 	let mut buf = [0u8; 16];
-	try!(ops::security_receive(
+	ops::security_receive(
 		f.as_raw_fd(),
 		ProtocolAtaSecurity.into(),
 		0,
 		0,
 		&mut buf
-	));
+	)?;
 	Ok(Some(AtaSecurityIdentify::from(buf)))
 }
 
@@ -93,10 +93,10 @@ struct DriveInfo(
 	Result<(
 		IdentifyController,
 		Result<
-			(Option<(
+			Option<(
 				Vec<nvme::security::Protocol>,
 				Result<Option<AtaSecurityIdentify>>,
-			)>),
+			)>,
 		>,
 	)>,
 );
@@ -106,16 +106,16 @@ impl fmt::Display for DriveInfo {
 		let r_i = &self.0;
 		let (i, r_p) = match r_i {
 			&Err(ref e) => {
-				try!(writeln!(
+				writeln!(
 					fmt,
 					"There was an error obtaining NVMe identity information:\n{:?}",
 					e
-				));
+				)?;
 				return Ok(());
 			}
 			&Ok((ref i, ref r_p)) => (i, r_p),
 		};
-		try!(writeln!(
+		writeln!(
 			fmt,
 			"vid:ssvid: {:04x}:{:04x}
 model: {}
@@ -128,45 +128,45 @@ oacs: {:?}",
 			String::from_utf8_lossy(i.mn()),
 			String::from_utf8_lossy(i.fr()),
 			i.oacs()
-		));
+		)?;
 		let (protocols, r_s) = match r_p {
 			&Err(ref e) => {
-				try!(writeln!(
+				writeln!(
 					fmt,
 					"There was an error enumerating supported NVMe security protocols:\n{:?}",
 					e
-				));
+				)?;
 				return Ok(());
 			}
 			&Ok(None) => {
-				try!(writeln!(
+				writeln!(
 					fmt,
 					"This drive does not support NVMe security commands."
-				));
+				)?;
 				return Ok(());
 			}
 			&Ok(Some((ref p, ref r_s))) => (p, r_s),
 		};
-		try!(writeln!(fmt, "protocols: {:?}", protocols));
+		writeln!(fmt, "protocols: {:?}", protocols)?;
 		let security = match r_s {
 			&Err(ref e) => {
-				try!(writeln!(
+				writeln!(
 					fmt,
 					"There was an error obtaining ATA security information:\n{:?}",
 					e
-				));
+				)?;
 				return Ok(());
 			}
 			&Ok(None) => {
-				try!(writeln!(
+				writeln!(
 					fmt,
 					"This drive does not support ATA security commands."
-				));
+				)?;
 				return Ok(());
 			}
 			&Ok(Some(ref s)) => s,
 		};
-		try!(writeln!(
+		writeln!(
 			fmt,
 			"ata security: erase time: {} enhanced erase time: {}, master pwd id: {:04x} maxset: {}
 s_suprt: {} s_enabld: {} locked: {} frozen: {} pwcntex: {} en_er_sup: {}",
@@ -180,9 +180,9 @@ s_suprt: {} s_enabld: {} locked: {} frozen: {} pwcntex: {} en_er_sup: {}",
 			security.frozen(),
 			security.pwcntex(),
 			security.en_er_sup()
-		));
+		)?;
 		if !security.s_suprt() {
-			try!(writeln!(fmt, "This drive does not support ATA security."));
+			writeln!(fmt, "This drive does not support ATA security.")?;
 		}
 		Ok(())
 	}
@@ -262,24 +262,24 @@ fn security_set_password_master(f: &File, password: [u8; 32], id: u16) -> Result
 
 fn security_unlock(f: &File, password: [u8; 32], master: bool) -> Result<()> {
 	let buf: [u8; 36] = AtaSecurityPassword::new(password, master, None, None).into();
-	try!(ops::security_send(
+	ops::security_send(
 		f.as_raw_fd(),
 		ProtocolAtaSecurity.into(),
 		AtaSecuritySpecific::Unlock as u16,
 		0,
 		Some(&buf)
-	));
+	)?;
 	ops::ioctl_blkrrpart(f.as_raw_fd())
 }
 
 fn security_erase(f: &File, password: [u8; 32], master: bool, enhanced: bool) -> Result<()> {
-	try!(ops::security_send(
+	ops::security_send(
 		f.as_raw_fd(),
 		ProtocolAtaSecurity.into(),
 		AtaSecuritySpecific::ErasePrepare as u16,
 		0,
 		None
-	));
+	)?;
 	let buf: [u8; 36] = AtaSecurityPassword::new(password, master, Some(enhanced), None).into();
 	ops::security_send(
 		f.as_raw_fd(),
@@ -320,8 +320,8 @@ fn read_password_err(
 	let mut f_stdin;
 	let f_password;
 	let mut f_password_ptr;
-	let f: &mut Read = if let Some(src) = src {
-		f_file = try!(File::open(src));
+	let f: &mut dyn Read = if let Some(src) = src {
+		f_file = File::open(src)?;
 		&mut f_file
 	} else {
 		if nix::unistd::isatty(0).unwrap_or(false) {
@@ -331,7 +331,7 @@ fn read_password_err(
 					String::from_utf8_lossy(identity.mn()).trim(),
 					String::from_utf8_lossy(identity.sn()).trim()
 				);
-				let password1 = try!(rpassword::read_password());
+				let password1 = rpassword::read_password()?;
 				if password1.len() == 0 {
 					continue;
 				} else if password1.len() > 32 {
@@ -340,7 +340,7 @@ fn read_password_err(
 				}
 				if confirm {
 					eprint!("Enter password again:");
-					let password2 = try!(rpassword::read_password());
+					let password2 = rpassword::read_password()?;
 					if password1 != password2 {
 						eprintln!("Passwords don't match!");
 						continue;
@@ -358,7 +358,7 @@ fn read_password_err(
 	};
 
 	let mut buf = vec![];
-	try!(f.read_to_end(&mut buf));
+	f.read_to_end(&mut buf)?;
 	let mut out = [0u8; 32];
 	let mut sha256 = Sha256::new();
 	sha256.input(&buf);

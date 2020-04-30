@@ -29,7 +29,7 @@ compile_error!("This module will only work on Linux x86-64");
 extern "C" fn handle_sigsys(_signo: c_int, info: *mut siginfo_t, context: *mut c_void) {
 	fn rdrand64() -> u64 {
 		unsafe {
-			let mut ret: u64 = mem::uninitialized();
+			let mut ret: u64 = mem::MaybeUninit::<u64>::uninit().assume_init();
 			for _ in 0..10 {
 				if ::std::arch::x86_64::_rdrand64_step(&mut ret) == 1 {
 					return ret;
