@@ -36,7 +36,7 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 pub fn identify_controller(fd: RawFd) -> Result<nvme::identify::IdentifyController> {
 	let mut buf = [0u8; 4096];
 	unsafe {
-		try!(nvme_ioctl_admin_cmd(
+		nvme_ioctl_admin_cmd(
 			fd,
 			NvmeAdminCmd {
 				opcode: nvme::Opcode::AdminIdentify as u8,
@@ -46,7 +46,7 @@ pub fn identify_controller(fd: RawFd) -> Result<nvme::identify::IdentifyControll
 				cdw10: 1,
 				..Default::default()
 			}
-		))
+		)?;
 	}
 	return Ok(nvme::identify::IdentifyController::from(buf));
 }
@@ -58,7 +58,7 @@ pub fn security_send(fd: RawFd, secp: u8, spsp: u16, nssf: u8, data: Option<&[u8
 			fd,
 			NvmeAdminCmd {
 				opcode: nvme::Opcode::AdminSecuritySend as u8,
-				nsid: try!(nvme_ioctl_id(fd)),
+				nsid: nvme_ioctl_id(fd)?,
 				addr: data.map(|d| d.as_ptr() as usize as u64).unwrap_or(0),
 				data_len: data.map(|d| d.len() as u32).unwrap_or(0),
 				cdw11: data.map(|d| d.len() as u32).unwrap_or(0),
@@ -76,7 +76,7 @@ pub fn security_receive(fd: RawFd, secp: u8, spsp: u16, nssf: u8, data: &mut [u8
 			fd,
 			NvmeAdminCmd {
 				opcode: nvme::Opcode::AdminSecurityReceive as u8,
-				nsid: try!(nvme_ioctl_id(fd)),
+				nsid: nvme_ioctl_id(fd)?,
 				addr: data.as_mut_ptr() as usize as u64,
 				data_len: data.len() as u32,
 				cdw11: data.len() as u32,
