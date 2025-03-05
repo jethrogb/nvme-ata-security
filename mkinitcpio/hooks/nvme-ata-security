@@ -5,6 +5,7 @@ run_hook() {
 		if nvme-ata-security query $dev 2>&1 |grep -q 'locked: true'; then
 			echo Unlocking $dev
 			nvme-ata-security unlock -u $dev -t 3
+			udevadm settle
 		fi
 	done
 }
